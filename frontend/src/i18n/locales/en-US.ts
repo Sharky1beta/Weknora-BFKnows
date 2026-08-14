@@ -2,6 +2,7 @@ export default {
   menu: {
     knowledgeBase: 'Knowledge Base',
     agents: 'Agents',
+    qualityMonitor: 'Quality Monitoring',
     integrations: 'Publish & Integrations',
     organizations: 'Shared Spaces',
     chat: 'Chat',

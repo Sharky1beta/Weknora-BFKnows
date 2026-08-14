@@ -260,6 +260,8 @@ services:
       - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
       - REDIS_USERNAME=${REDIS_USERNAME:-}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      # gojieba's dictionaries are packaged with the custom app image.
+      - JIEBA_DICT_DIR=/go/pkg/mod/github.com/yanyiwu/gojieba@v1.4.7/deps/cppjieba/dict
       - REDIS_DB=${REDIS_DB:-}
       - REDIS_PREFIX=${REDIS_PREFIX:-}
       # Redis TLS（托管 Redis 加密传输；REDIS_USE_TLS=true 时生效，详见 .env.example）
@@ -524,7 +526,12 @@ services:
   redis:
     image: redis:7.0-alpine
     container_name: WeKnora-redis
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    # Local development may intentionally leave REDIS_PASSWORD blank. Redis
+    # rejects an empty --requirepass argument, so only enable auth when a
+    # password is actually configured.
+    command: ["sh", "-c", "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\"; else exec redis-server --appendonly yes; fi"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     restart: always
     networks:
       - WeKnora-network

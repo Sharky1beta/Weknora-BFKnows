@@ -2,6 +2,7 @@ export default {
   menu: {
     knowledgeBase: "知识库",
     agents: "智能体",
+    qualityMonitor: "质量监控",
     integrations: "发布集成",
     organizations: "共享空间",
     chat: "对话",

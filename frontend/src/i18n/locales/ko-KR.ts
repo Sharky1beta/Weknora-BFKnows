@@ -2,6 +2,7 @@ export default {
   menu: {
     knowledgeBase: "지식베이스",
     agents: "에이전트",
+    qualityMonitor: "품질 모니터링",
     integrations: "게시 및 통합",
     organizations: "공유 공간",
     chat: "대화",
@@ -5569,7 +5570,7 @@ export default {
       chunks: '지식베이스 파일',
       messages: '대화 메시지',
       kbs: '지식베이스',
-      agents: '에이전트',
+    agents: '에이전트',
       sessionsByTitle: '대화（제목별）',
       commands: '명령',
       recent: '최근 검색',

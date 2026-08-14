@@ -559,19 +559,22 @@ async function testConnection() {
   testResult.value = ''
   testErrorMsg.value = ''
   try {
-    if (isEdit.value && tempDsId.value) {
-      await updateDataSource(tempDsId.value, {
-        ...form.value,
-        knowledge_base_id: props.kbId,
-      } as any)
-      await validateConnection(tempDsId.value)
-    } else {
-      const creds = { ...form.value.config.credentials }
-      if (form.value.type === 'rss') {
-        // validate-credentials is credentials-only; feed URLs live in settings.
-        creds.feed_urls = form.value.config.settings.feed_urls
-      }
+    const creds = { ...form.value.config.credentials }
+    if (form.value.type === 'rss') {
+      // validate-credentials is credentials-only; feed URLs live in settings.
+      creds.feed_urls = form.value.config.settings.feed_urls
+    }
+
+    // In edit mode the stored data source intentionally does not expose
+    // credentials. If the user has entered credentials in this form, test
+    // those values directly instead of validating the stale DB record.
+    const hasFormCredentials = Object.entries(creds).some(([key, value]) =>
+      key !== 'feed_urls' && String(value ?? '').trim() !== '',
+    )
+    if (hasFormCredentials || !isEdit.value || !tempDsId.value) {
       await validateCredentials(form.value.type, creds)
+    } else {
+      await validateConnection(tempDsId.value)
     }
     testResult.value = 'success'
     MessagePlugin.success(t('datasource.testSuccess'))

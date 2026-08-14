@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uq_selfcheck_document_mapping_tenant_doc;

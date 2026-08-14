@@ -41,6 +41,7 @@ export default {
     noSessions: 'Пока нет диалогов',
     loadMoreSessions: 'Загрузить ещё',
     agents: 'Агенты',
+    qualityMonitor: 'Мониторинг качества',
     integrations: 'Публикация и интеграция',
     organizations: 'Общие пространства'
   },

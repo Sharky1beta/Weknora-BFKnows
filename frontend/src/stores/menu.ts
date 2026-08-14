@@ -28,6 +28,8 @@ export const useMenuStore = defineStore('menuStore', () => {
     },
     { title: '', titleKey: 'menu.knowledgeBase', icon: 'zhishiku', path: 'knowledge-bases' },
     { title: '', titleKey: 'menu.agents', icon: 'agent', path: 'agents' },
+    { title: '', titleKey: 'menu.qualityMonitor', icon: 'monitoring', path: 'quality-monitor' },
+    { title: '知识自检', icon: 'monitoring', path: 'knowledge-selfcheck' },
     { title: '', titleKey: 'menu.organizations', icon: 'organization', path: 'organizations' },
     { title: '', titleKey: 'menu.settings', icon: 'setting', path: 'settings' },
     { title: '', titleKey: 'menu.logout', icon: 'logout', path: 'logout' }
@@ -69,7 +71,7 @@ export const useMenuStore = defineStore('menuStore', () => {
       if (authStore.isLiteMode && liteHiddenPaths.has(item.path)) {
         return false
       }
-      if (item.path === 'organizations' && !authStore.hasRole('admin')) {
+      if ((item.path === 'organizations' || item.path === 'quality-monitor' || item.path === 'knowledge-selfcheck') && !authStore.hasRole('admin')) {
         return false
       }
       return true

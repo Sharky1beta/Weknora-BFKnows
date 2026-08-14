@@ -1543,7 +1543,11 @@ func registerWebSearchProviders(registry *infra_web_search.Registry) {
 // registerIMService registers adapter factories, loads enabled channels, and
 // wires the process-lifetime shutdown hook. Each platform's factory lives in
 // its own subpackage to keep this file focused on wiring.
-func registerIMService(imService *imPkg.Service, cleaner interfaces.ResourceCleaner) {
+func registerIMService(
+	imService *imPkg.Service,
+	messageHandler *handler.MessageHandler,
+	cleaner interfaces.ResourceCleaner,
+) {
 	imService.RegisterAdapterFactory("wecom", wecom.NewFactory())
 	imService.RegisterAdapterFactory("feishu", feishu.NewFactory(feishu.RegionFeishu))
 	// Lark is Feishu's international cloud: same adapter, different host/tenant.
@@ -1560,8 +1564,12 @@ func registerIMService(imService *imPkg.Service, cleaner interfaces.ResourceClea
 	if err := imService.LoadAndStartChannels(); err != nil {
 		logger.Warnf(context.Background(), "[IM] Failed to load channels from database: %v", err)
 	}
+	reportCtx, stopReports := context.WithCancel(context.Background())
+	messageHandler.StartQualityReportScheduler(reportCtx)
+	messageHandler.StartKnowledgeSelfCheckScheduler(reportCtx)
 
 	cleaner.RegisterWithName("IMService", func() error {
+		stopReports()
 		imService.Stop()
 		return nil
 	})

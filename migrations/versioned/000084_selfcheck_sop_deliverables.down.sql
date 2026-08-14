@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS knowledge_selfcheck_sop_deliverables;

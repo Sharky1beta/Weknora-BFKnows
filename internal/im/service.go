@@ -1559,6 +1559,53 @@ func (s *Service) GetChannelAdapter(channelID string) (Adapter, *IMChannel, bool
 	return cs.Adapter, cs.Channel, true
 }
 
+// SendProactiveGroupMessage sends a final text message to an existing group
+// through a configured channel. It is used by scheduled operational reports,
+// where there is no incoming message to reply to.
+func (s *Service) SendProactiveGroupMessage(ctx context.Context, channelID, chatID, content string) error {
+	chatID = strings.TrimSpace(chatID)
+	content = strings.TrimSpace(content)
+	if chatID == "" {
+		return errors.New("target chat ID is required")
+	}
+	if content == "" {
+		return errors.New("message content is required")
+	}
+	adapter, channel, err := s.EnsureChannelAdapter(channelID)
+	if err != nil {
+		return err
+	}
+	return adapter.SendReply(ctx, &IncomingMessage{
+		Platform:    Platform(channel.Platform),
+		MessageType: MessageTypeText,
+		ChatID:      chatID,
+		ChatType:    ChatTypeGroup,
+	}, &ReplyMessage{Content: content, IsFinal: true})
+}
+
+// SendProactiveUserMessage sends a final text message to a user identified by
+// the platform open ID through an existing configured channel.
+func (s *Service) SendProactiveUserMessage(ctx context.Context, channelID, openID, content string) error {
+	openID = strings.TrimSpace(openID)
+	content = strings.TrimSpace(content)
+	if openID == "" {
+		return errors.New("target user open ID is required")
+	}
+	if content == "" {
+		return errors.New("message content is required")
+	}
+	adapter, channel, err := s.EnsureChannelAdapter(channelID)
+	if err != nil {
+		return err
+	}
+	return adapter.SendReply(ctx, &IncomingMessage{
+		Platform:    Platform(channel.Platform),
+		MessageType: MessageTypeText,
+		UserID:      openID,
+		ChatType:    ChatTypeDirect,
+	}, &ReplyMessage{Content: content, IsFinal: true})
+}
+
 // EnsureChannelAdapter loads the durable channel row before serving a webhook
 // callback. This prevents a replica that missed an invalidation event from
 // verifying or processing the callback with stale credentials/configuration.

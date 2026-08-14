@@ -337,6 +337,151 @@ func (c *Client) ListWikiSpaces(ctx context.Context) ([]wikiSpace, error) {
 	return allSpaces, nil
 }
 
+// ResolveUserOpenIDByEmail resolves a tenant user's app-scoped open_id from
+// their Feishu account email. It is used by optional notification workflows;
+// the result must not be reused by another Feishu application.
+func (c *Client) ResolveUserOpenIDByEmail(ctx context.Context, email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return "", fmt.Errorf("email is required")
+	}
+
+	var resp struct {
+		apiResponse
+		Data struct {
+			UserList []struct {
+				OpenID string `json:"open_id"`
+			} `json:"user_list"`
+		} `json:"data"`
+	}
+	if err := c.doRequest(ctx, http.MethodPost, "/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id", map[string][]string{"emails": []string{email}}, &resp); err != nil {
+		return "", fmt.Errorf("resolve user by email: %w", err)
+	}
+	if resp.Code != 0 {
+		return "", fmt.Errorf("resolve user by email: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if len(resp.Data.UserList) == 0 || strings.TrimSpace(resp.Data.UserList[0].OpenID) == "" {
+		return "", fmt.Errorf("no active Feishu user found for %s", email)
+	}
+	return strings.TrimSpace(resp.Data.UserList[0].OpenID), nil
+}
+
+// TenantUser is the minimum contact data needed for assigning a notification
+// owner. OpenID is app-scoped and therefore safe to use with this client only.
+type TenantUser struct {
+	OpenID string `json:"open_id"`
+	Name   string `json:"name"`
+}
+
+// ListTenantUsers returns the users visible to the application. The Feishu
+// application must have the basic contact permission and a contact scope that
+// includes the intended users.
+func (c *Client) ListTenantUsers(ctx context.Context) ([]TenantUser, error) {
+	// Do not assume the application can read the root department. Feishu may
+	// grant only a subset of the tenant contact tree; querying department 0 in
+	// that case returns 40004 (no dept authority) even though contact access is
+	// correctly configured. Resolve the application's actual contact scope
+	// first and enumerate only departments/users it is allowed to see.
+	var scopeResp struct {
+		apiResponse
+		Data struct {
+			DepartmentIDs []string `json:"department_ids"`
+			UserIDs       []string `json:"user_ids"`
+		} `json:"data"`
+	}
+	if err := c.doRequest(ctx, http.MethodGet,
+		"/open-apis/contact/v3/scopes?user_id_type=open_id&department_id_type=open_department_id",
+		nil, &scopeResp); err != nil {
+		return nil, fmt.Errorf("load contact scope: %w", err)
+	}
+	if scopeResp.Code != 0 {
+		return nil, fmt.Errorf("load contact scope: code=%d msg=%s", scopeResp.Code, scopeResp.Msg)
+	}
+
+	users := make([]TenantUser, 0)
+	seen := make(map[string]struct{})
+	appendUser := func(user TenantUser) {
+		user.OpenID = strings.TrimSpace(user.OpenID)
+		user.Name = strings.TrimSpace(user.Name)
+		if user.OpenID == "" || user.Name == "" {
+			return
+		}
+		if _, ok := seen[user.OpenID]; ok {
+			return
+		}
+		seen[user.OpenID] = struct{}{}
+		users = append(users, user)
+	}
+
+	for _, departmentID := range scopeResp.Data.DepartmentIDs {
+		departmentID = strings.TrimSpace(departmentID)
+		if departmentID == "" {
+			continue
+		}
+		pageToken := ""
+		for {
+			path := "/open-apis/contact/v3/users/find_by_department?department_id=" + url.QueryEscape(departmentID) +
+				"&department_id_type=open_department_id&user_id_type=open_id&fetch_child=true&page_size=50"
+			if pageToken != "" {
+				path += "&page_token=" + url.QueryEscape(pageToken)
+			}
+			var resp struct {
+				apiResponse
+				Data struct {
+					Items     []TenantUser `json:"items"`
+					HasMore   bool         `json:"has_more"`
+					PageToken string       `json:"page_token"`
+				} `json:"data"`
+			}
+			if err := c.doRequest(ctx, http.MethodGet, path, nil, &resp); err != nil {
+				return nil, fmt.Errorf("list users in authorized department: %w", err)
+			}
+			if resp.Code != 0 {
+				return nil, fmt.Errorf("list users in authorized department: code=%d msg=%s", resp.Code, resp.Msg)
+			}
+			for _, item := range resp.Data.Items {
+				appendUser(item)
+			}
+			if !resp.Data.HasMore || resp.Data.PageToken == "" {
+				break
+			}
+			pageToken = resp.Data.PageToken
+		}
+	}
+
+	// A contact scope can contain explicitly selected users without granting
+	// their whole department. Load those users individually as well.
+	for _, userID := range scopeResp.Data.UserIDs {
+		userID = strings.TrimSpace(userID)
+		if userID == "" {
+			continue
+		}
+		var resp struct {
+			apiResponse
+			Data struct {
+				User TenantUser `json:"user"`
+			} `json:"data"`
+		}
+		path := "/open-apis/contact/v3/users/" + url.PathEscape(userID) + "?user_id_type=open_id&department_id_type=open_department_id"
+		if err := c.doRequest(ctx, http.MethodGet, path, nil, &resp); err != nil {
+			return nil, fmt.Errorf("load explicitly authorized user: %w", err)
+		}
+		if resp.Code != 0 {
+			return nil, fmt.Errorf("load explicitly authorized user: code=%d msg=%s", resp.Code, resp.Msg)
+		}
+		appendUser(resp.Data.User)
+	}
+
+	if len(users) == 0 {
+		return nil, fmt.Errorf("the Feishu application contact scope contains no readable members")
+	}
+	return users, nil
+	/*
+		The old implementation queried department 0 directly. Keep no fallback
+		here: falling back would reproduce Feishu error 40004 for scoped apps.
+	*/
+}
+
 // ListWikiNodes returns all nodes (documents) under a wiki space.
 // If parentNodeToken is empty, returns top-level nodes.
 func (c *Client) ListWikiNodes(ctx context.Context, spaceID string, parentNodeToken string) ([]wikiNode, error) {

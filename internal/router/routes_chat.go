@@ -30,6 +30,31 @@ func RegisterMessageRoutes(r *gin.RouterGroup, handler *handler.MessageHandler, 
 		chatMessages.GET("/:session_id/load", g.Viewer(), handler.LoadMessages)
 		chatMessages.DELETE("/:session_id/:id", g.Viewer(), handler.DeleteMessage)
 	}
+
+	// Quality monitoring is tenant-wide operational data. It is computed from
+	// persisted messages and never invokes an LLM, so reading the dashboard does
+	// not consume model tokens. Restrict it to tenant administrators.
+	quality := g.apiKeyGroup(r.Group("/quality-monitor"), apiKeyFullAccess())
+	{
+		quality.GET("/summary", g.Admin(), handler.GetQualitySummary)
+		quality.GET("/misses", g.Admin(), handler.ListQualityMisses)
+		quality.GET("/report-config", g.Admin(), handler.GetQualityReportConfig)
+		quality.PUT("/report-config", g.Admin(), handler.UpdateQualityReportConfig)
+		quality.POST("/reports/generate", g.Admin(), handler.GenerateQualityReport)
+		quality.GET("/reports", g.Admin(), handler.ListQualityReports)
+		quality.POST("/reports/:id/send", g.Admin(), handler.SendQualityReport)
+	}
+	selfCheck := g.apiKeyGroup(r.Group("/knowledge-selfcheck"), apiKeyFullAccess())
+	{
+		selfCheck.GET("/overview", g.Admin(), handler.GetKnowledgeSelfCheckOverview)
+		selfCheck.DELETE("/runs", g.Admin(), handler.ClearKnowledgeSelfCheckRuns)
+		selfCheck.GET("/feishu-members", g.Admin(), handler.ListKnowledgeSelfCheckFeishuMembers)
+		selfCheck.PUT("/profiles/:kb_id", g.Admin(), handler.UpdateKnowledgeSelfCheckProfile)
+		selfCheck.POST("/mappings", g.Admin(), handler.UpsertKnowledgeSelfCheckMapping)
+		selfCheck.GET("/document-mappings", g.Admin(), handler.ListKnowledgeSelfCheckDocumentMappings)
+		selfCheck.PUT("/document-mappings", g.Admin(), handler.UpsertKnowledgeSelfCheckDocumentMapping)
+		selfCheck.POST("/runs", g.Admin(), handler.RunKnowledgeSelfCheck)
+	}
 }
 
 // RegisterSessionRoutes 注册路由。

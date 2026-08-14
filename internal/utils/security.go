@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"html"
 	"log"
@@ -787,6 +788,8 @@ func NewSSRFSafeTransport(config SSRFSafeHTTPClientConfig) *http.Transport {
 	return &http.Transport{
 		DisableKeepAlives:  config.DisableKeepAlives,
 		DisableCompression: config.DisableCompression,
+		ForceAttemptHTTP2:  false, // Disable HTTP/2 to prevent connection hangs with CDNs like Feishu's
+		TLSNextProto:       make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
 		// Dial with SSRF protection - validates resolved IPs before connecting
 		DialContext: SSRFSafeDialContext,
 	}

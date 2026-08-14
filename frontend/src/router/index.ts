@@ -135,6 +135,18 @@ const router = createRouter({
           meta: { requiresInit: true, requiresAuth: true }
         },
         {
+          path: "quality-monitor",
+          name: "qualityMonitor",
+          component: () => import("../views/quality/QualityMonitor.vue"),
+          meta: { requiresInit: true, requiresAuth: true }
+        },
+        {
+          path: "knowledge-selfcheck",
+          name: "knowledgeSelfCheck",
+          component: () => import("../views/selfcheck/KnowledgeSelfCheck.vue"),
+          meta: { requiresInit: true, requiresAuth: true }
+        },
+        {
           path: "integrations",
           redirect: (to) => ({
             path: "/platform/settings",

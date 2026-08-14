@@ -1,0 +1,11 @@
+builtin_models:
+  - id: builtin-sensenova-flash-lite
+    name: sensenova-6.7-flash-lite
+    display_name: SenseNova 6.7 Flash Lite
+    type: KnowledgeQA
+    source: remote
+    is_default: false
+    parameters:
+      base_url: https://token.sensenova.cn/v1
+      api_key: ${SENSENOVA_API_KEY}
+      provider: generic

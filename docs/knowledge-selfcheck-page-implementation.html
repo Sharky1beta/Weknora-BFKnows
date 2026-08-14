@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WeKnora 知识自检页逻辑与实现说明</title>
+  <style>
+    :root {
+      --bg: #f4f8f6;
+      --card: #ffffff;
+      --ink: #1d302a;
+      --muted: #6d7d78;
+      --line: #dfe9e5;
+      --brand: #00a870;
+      --dark: #153f35;
+      --soft: #e8f8f1;
+      --warn: #9b6000;
+      --danger: #c93521;
+      --shadow: 0 14px 40px rgba(20, 60, 46, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.72;
+      color: var(--ink);
+      background: linear-gradient(135deg, #f8fbf9, var(--bg));
+    }
+    a { color: #087958; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, .path {
+      font-family: "JetBrains Mono", Consolas, "Microsoft YaHei UI", monospace;
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #f1f6f4;
+      color: #17463a;
+      font-size: .92em;
+      word-break: break-all;
+    }
+    pre {
+      overflow: auto;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #10231e;
+      color: #d8fff0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .shell {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 28px;
+      max-width: 1460px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+    aside {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,.92);
+      box-shadow: var(--shadow);
+    }
+    aside h2 { margin: 0 0 12px; font-size: 15px; color: var(--dark); }
+    aside ol { margin: 0; padding-left: 20px; }
+    aside li { margin: 6px 0; font-size: 14px; color: var(--muted); }
+    .hero, section {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .hero {
+      padding: 34px 38px;
+      margin-bottom: 22px;
+      background: radial-gradient(circle at top right, #dff8ec, transparent 42%), var(--card);
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--brand);
+      font-weight: 800;
+      letter-spacing: .18em;
+      font-size: 12px;
+    }
+    h1 { margin: 0 0 12px; font-size: 34px; line-height: 1.25; }
+    h2 { margin: 0 0 14px; font-size: 24px; }
+    h3 { margin: 24px 0 8px; font-size: 18px; color: var(--dark); }
+    h4 { margin: 18px 0 6px; font-size: 15px; }
+    p { margin: 8px 0; }
+    .muted { color: var(--muted); }
+    section { padding: 26px 30px; margin: 18px 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbfdfc;
+    }
+    .card strong { display: block; margin-bottom: 4px; color: var(--dark); }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+    th, td { padding: 10px 12px; border: 1px solid var(--line); vertical-align: top; }
+    th { text-align: left; color: #fff; background: var(--dark); }
+    .flow { display: grid; gap: 10px; }
+    .step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+    .num {
+      width: 30px;
+      height: 30px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      color: white;
+      background: var(--brand);
+      font-weight: 800;
+    }
+    .step div:last-child {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfdfc;
+    }
+    .note {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #fff7e6;
+      color: var(--warn);
+      border-left: 4px solid #f0a020;
+    }
+    .danger {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #fff0ed;
+      color: var(--danger);
+      border-left: 4px solid var(--danger);
+    }
+    .status { display: inline-block; padding: 2px 8px; border-radius: 12px; }
+    .present { color: #087958; background: #dff6ec; }
+    .partial { color: #9b6000; background: #fff2d8; }
+    .missing { color: #c93521; background: #ffebe6; }
+    .uncertain { color: #315ba6; background: #e8efff; }
+    .top { float: right; font-size: 12px; color: var(--muted); }
+    footer { padding: 20px; text-align: center; color: var(--muted); font-size: 13px; }
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 1fr; padding: 18px; }
+      aside { position: static; }
+      .grid, .grid3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body id="top">
+<div class="shell">
+  <aside>
+    <h2>目录</h2>
+    <ol>
+      <li><a href="#goal">页面目标</a></li>
+      <li><a href="#frontend">前端结构</a></li>
+      <li><a href="#apis">API 与跳转接口</a></li>
+      <li><a href="#tables">数据表职责</a></li>
+      <li><a href="#runflow">执行链路</a></li>
+      <li><a href="#extract">SOP 交付物提取</a></li>
+      <li><a href="#match">项目文档匹配</a></li>
+      <li><a href="#states">状态机</a></li>
+      <li><a href="#notify">通知与定时</a></li>
+      <li><a href="#codemap">功能到代码映射</a></li>
+      <li><a href="#verify">验证与排查</a></li>
+    </ol>
+  </aside>
+
+  <main>
+    <div class="hero">
+      <p class="eyebrow">WEKNORA · KNOWLEDGE SELF-CHECK</p>
+      <h1>知识自检页逻辑与实现说明</h1>
+      <p>这份文档说明 WeKnora「知识自检」页面的业务逻辑、前后端实现、API、数据表、状态机、通知和定时任务。目标是让后续开发者能够从页面功能直接跳到对应代码和接口。</p>
+      <p class="muted">代码根目录：<span class="path">D:\OneDrive\文档\BF-knows 2\vendor\WeKnora</span>。页面地址：<code>http://localhost/platform/knowledge-selfcheck</code>。</p>
+    </div>
+
+    <section id="goal">
+      <a class="top" href="#top">TOP</a>
+      <h2>1. 页面目标</h2>
+      <p>知识自检页用于检查项目知识库中的入口项目文档，是否满足其直接绑定的 SOP 文档中定义的实体交付物要求。</p>
+      <div class="grid">
+        <div class="card"><strong>项目文档直接绑定 SOP</strong>每个入口项目文档绑定一个具体 SOP 文档。运行时读取 <code>knowledge_selfcheck_document_mappings</code>，不重新 fuzzy match。</div>
+        <div class="card"><strong>只检查实体交付物</strong>只核对文档、表单、记录、截图、清单、PPT/演示稿等能在知识库归档的实体；动作和流程步骤不作为检查项。</div>
+        <div class="card"><strong>只判断存在性</strong>当前版本只判断交付物是否能在项目文档标题或目录中找到，不判断内容质量和规范性。</div>
+        <div class="card"><strong>保存、通知、定时</strong>每次自检保存 run 和 findings；缺失、不完整、待确认项通知负责人；支持每日定时自动执行。</div>
+      </div>
+    </section>
+
+    <section id="frontend">
+      <a class="top" href="#top">TOP</a>
+      <h2>2. 前端结构</h2>
+      <p>页面主文件：</p>
+      <p><span class="path">frontend/src/views/selfcheck/KnowledgeSelfCheck.vue</span></p>
+      <table>
+        <tr><th>页面区域</th><th>用户能力</th><th>前端状态/方法</th><th>代码位置</th></tr>
+        <tr><td>页头模型选择</td><td>选择所有自检使用的模型。</td><td><code>selectedModelId</code>、<code>persistSelfCheckModel()</code></td><td><span class="path">KnowledgeSelfCheck.vue:8, 105, 176</span></td></tr>
+        <tr><td>项目配置卡片</td><td>设置知识库用途、SOP 知识库、负责人、飞书机器人、每日自检时间、启用自检。</td><td><code>profile(kb.id)</code>、<code>saveProfile()</code></td><td><span class="path">KnowledgeSelfCheck.vue:17-35, 117, 179</span></td></tr>
+        <tr><td>入口文档绑定</td><td>系统识别入口文档后，为每个入口文档选择 SOP 文档，并统一保存。</td><td><code>loadDocumentMappings()</code>、<code>saveProjectDocumentMappings()</code></td><td><span class="path">KnowledgeSelfCheck.vue:41-66, 184-204</span></td></tr>
+        <tr><td>执行自检</td><td>点击「立即自检」触发真实自检。</td><td><code>execute(kbId)</code></td><td><span class="path">KnowledgeSelfCheck.vue:68-76, 180</span></td></tr>
+        <tr><td>最近检查结果</td><td>展示每次 run 的项目文档、对应 SOP、当前状态、缺失/待确认交付物。</td><td><code>documentRows()</code>、<code>clearRuns()</code></td><td><span class="path">KnowledgeSelfCheck.vue:78-92, 120-153, 214-223</span></td></tr>
+      </table>
+      <p class="note">这页不让用户配置所有证据材料。用户只需要确认入口项目文档与 SOP 的绑定；项目证据范围由后端根据入口文档和标题范围自动推断。</p>
+    </section>
+
+    <section id="apis">
+      <a class="top" href="#top">TOP</a>
+      <h2>3. API 与跳转接口</h2>
+      <p>前端 API 封装文件：</p>
+      <p><span class="path">frontend/src/api/knowledge-selfcheck/index.ts</span></p>
+      <p>后端路由文件：</p>
+      <p><span class="path">internal/router/routes_chat.go:48-56</span></p>
+      <table>
+        <tr><th>接口</th><th>前端方法</th><th>后端 Handler</th><th>职责</th></tr>
+        <tr><td><code>GET /api/v1/knowledge-selfcheck/overview</code></td><td><code>getSelfCheckOverview()</code></td><td><code>GetKnowledgeSelfCheckOverview</code></td><td>加载知识库、profiles、旧 KB mapping、runs、findings。</td></tr>
+        <tr><td><code>PUT /api/v1/knowledge-selfcheck/profiles/:knowledge_base_id</code></td><td><code>updateSelfCheckProfile()</code></td><td><code>UpdateKnowledgeSelfCheckProfile</code></td><td>保存知识库用途、SOP KB、负责人、机器人、每日时间和 enabled。</td></tr>
+        <tr><td><code>GET /api/v1/knowledge-selfcheck/document-mappings</code></td><td><code>getSelfCheckDocumentMappings()</code></td><td><code>ListKnowledgeSelfCheckDocumentMappings</code></td><td>列出项目入口文档、当前绑定、可选 SOP 文档。</td></tr>
+        <tr><td><code>PUT /api/v1/knowledge-selfcheck/document-mappings</code></td><td><code>saveSelfCheckDocumentMapping()</code></td><td><code>UpsertKnowledgeSelfCheckDocumentMapping</code></td><td>保存入口项目文档到具体 SOP 文档的人工绑定。</td></tr>
+        <tr><td><code>POST /api/v1/knowledge-selfcheck/runs</code></td><td><code>runSelfCheck()</code></td><td><code>RunKnowledgeSelfCheck</code></td><td>异步启动一次真实自检。</td></tr>
+        <tr><td><code>GET /api/v1/knowledge-selfcheck/feishu-members</code></td><td><code>listSelfCheckFeishuMembers()</code></td><td><code>ListKnowledgeSelfCheckFeishuMembers</code></td><td>获取飞书成员 open_id，供负责人下拉选择。</td></tr>
+        <tr><td><code>DELETE /api/v1/knowledge-selfcheck/runs</code></td><td><code>clearSelfCheckRuns()</code></td><td><code>ClearKnowledgeSelfCheckRuns</code></td><td>清空当前租户保留的自检运行和明细记录。</td></tr>
+      </table>
+      <h3>文档绑定请求示例</h3>
+      <pre><code>{
+  "project_knowledge_base_id": "27ddea62-272c-4e00-adda-4781b333a258",
+  "project_document_id": "af7168b7-e7d6-4fe7-966c-1985ed9b8292",
+  "sop_knowledge_base_id": "a2493a12-7b3d-46e2-9163-1da51f95af5d",
+  "sop_document_id": "fb2e5b5f-6099-4458-9cc3-900bbfb10611",
+  "enabled": true
+}</code></pre>
+    </section>
+
+    <section id="tables">
+      <a class="top" href="#top">TOP</a>
+      <h2>4. 数据表职责</h2>
+      <table>
+        <tr><th>表</th><th>职责</th><th>关键字段</th><th>迁移</th></tr>
+        <tr><td><code>knowledge_selfcheck_profiles</code></td><td>知识库级自检配置。</td><td><code>purpose</code>、<code>sop_knowledge_base_id</code>、<code>owner_open_id</code>、<code>im_channel_id</code>、<code>daily_schedule</code>、<code>last_run_at</code>、<code>enabled</code></td><td><span class="path">000080, 000081, 000082, 000086</span></td></tr>
+        <tr><td><code>knowledge_selfcheck_document_mappings</code></td><td>入口项目文档到 SOP 文档的人工绑定。</td><td><code>project_document_id</code>、<code>sop_document_id</code>、<code>match_method</code>、<code>match_status</code></td><td><span class="path">000083, 000085</span></td></tr>
+        <tr><td><code>knowledge_selfcheck_sop_deliverables</code></td><td>SOP 交付物抽取缓存。</td><td><code>sop_content_hash</code>、<code>prompt_version</code>、<code>status</code>、<code>requirements</code>、<code>error</code></td><td><span class="path">000084</span></td></tr>
+        <tr><td><code>knowledge_selfcheck_runs</code></td><td>每次自检运行记录。</td><td><code>status</code>、<code>summary</code>、<code>model_id</code>、<code>started_at</code>、<code>completed_at</code></td><td><span class="path">000080</span></td></tr>
+        <tr><td><code>knowledge_selfcheck_findings</code></td><td>每个交付物检查结果。</td><td><code>requirement</code>、<code>state</code>、<code>evidence</code>、<code>suggestion</code>、<code>project_document_id</code>、<code>sop_document_id</code></td><td><span class="path">000080, 000083</span></td></tr>
+      </table>
+      <pre><code>CREATE UNIQUE INDEX IF NOT EXISTS uq_selfcheck_document_mapping_tenant_doc
+ON knowledge_selfcheck_document_mappings (tenant_id, project_document_id);</code></pre>
+    </section>
+
+    <section id="runflow">
+      <a class="top" href="#top">TOP</a>
+      <h2>5. 自检执行链路</h2>
+      <p>核心入口：</p>
+      <p><span class="path">internal/handler/knowledge_selfcheck.go:476-690</span></p>
+      <div class="flow">
+        <div class="step"><span class="num">1</span><div><strong>前端触发</strong><code>execute(kbId)</code> 调用 <code>POST /runs</code>，携带项目 KB ID 和模型 ID。</div></div>
+        <div class="step"><span class="num">2</span><div><strong>异步运行</strong><code>RunKnowledgeSelfCheck</code> 开 goroutine 执行 <code>runKnowledgeSelfCheck</code>。</div></div>
+        <div class="step"><span class="num">3</span><div><strong>读取 profile</strong>确认项目 KB 已启用、自检用途为 <code>project</code>，并已配置 SOP KB。</div></div>
+        <div class="step"><span class="num">4</span><div><strong>识别入口文档</strong>从项目 KB 文档中识别入口项目文档。</div></div>
+        <div class="step"><span class="num">5</span><div><strong>读取绑定 SOP</strong>从 <code>knowledge_selfcheck_document_mappings</code> 读取 manual binding。</div></div>
+        <div class="step"><span class="num">6</span><div><strong>读取 SOP 全文</strong>拼接 SOP 文档全部 chunk，并计算 content hash。</div></div>
+        <div class="step"><span class="num">7</span><div><strong>抽取或读取交付物缓存</strong><code>cachedSelfCheckSOPRequirements</code> 根据 SOP hash 和 prompt version 命中缓存，未命中则重新抽取。</div></div>
+        <div class="step"><span class="num">8</span><div><strong>限定项目证据范围</strong>根据入口文档标题推断同项目材料范围，不把整个 KB 全量文档当证据。</div></div>
+        <div class="step"><span class="num">9</span><div><strong>逐项匹配</strong><code>matchSelfCheckArtifact</code> 根据文档标题、目录标题、别名和强实体规则判断状态。</div></div>
+        <div class="step"><span class="num">10</span><div><strong>保存与通知</strong>保存 run 和 findings；将缺失、不完整、待确认项通知负责人。</div></div>
+      </div>
+    </section>
+
+    <section id="extract">
+      <a class="top" href="#top">TOP</a>
+      <h2>6. SOP 交付物提取逻辑</h2>
+      <p>当前版本的原则是：优先规则抽取，规则只读取 SOP 中「产出物 / 交付物 / 输出物」小节，不读流程表，不读附件模板，不把动作当交付物。</p>
+      <table>
+        <tr><th>层级</th><th>实现</th><th>代码位置</th></tr>
+        <tr><td>缓存版本</td><td><code>entity-artifacts-v9</code>。版本变化后会避开旧缓存，重新抽取。</td><td><span class="path">knowledge_selfcheck.go:117-135</span></td></tr>
+        <tr><td>缓存读取/写入</td><td>按 tenant、SOP KB、SOP document、content hash、prompt version 唯一缓存。</td><td><span class="path">knowledge_selfcheck.go:1253-1283</span></td></tr>
+        <tr><td>规则抽取</td><td>定位产出物小节，解析 bullet、表格最后一列、顿号/逗号拆分。</td><td><span class="path">knowledge_selfcheck.go:1364-1474</span></td></tr>
+        <tr><td>排除规则</td><td>排除附件模板、模板库、工具、关联资源和动作类要求。</td><td><span class="path">knowledge_selfcheck.go:1484-1497</span></td></tr>
+        <tr><td>模型兜底</td><td>规则无结果时调用模型，要求只返回实体交付物 JSON。</td><td><span class="path">knowledge_selfcheck.go:1298-1356</span></td></tr>
+      </table>
+      <pre><code>SOP 全文
+  ↓
+定位「产出物 / 交付物 / 输出物」小节
+  ↓
+抽取实体交付物：文档、表单、记录、截图、清单、PPT/演示稿
+  ↓
+排除动作、流程、附件模板、模板库、关联资源
+  ↓
+写入 knowledge_selfcheck_sop_deliverables</code></pre>
+    </section>
+
+    <section id="match">
+      <a class="top" href="#top">TOP</a>
+      <h2>7. 项目文档匹配规则</h2>
+      <p>自检只判断交付物是否存在。证据来自项目知识库中同项目范围内文档的标题和目录标题。</p>
+      <table>
+        <tr><th>方式</th><th>说明</th><th>状态倾向</th></tr>
+        <tr><td>文档标题命中</td><td>文档标题包含交付物名称或别名。</td><td><span class="status present">present</span></td></tr>
+        <tr><td>目录标题命中</td><td>入口项目文档目录里存在交付物章节，例如「用户画像卡片」「用户旅程地图」「Story Board」。</td><td><span class="status present">present</span> 或 <span class="status partial">partial</span></td></tr>
+        <tr><td>组合交付物拆分</td><td>例如「产品解决方案文档（包含：功能清单与优先级、架构图、解决方案文档）」会拆成组成项检查。</td><td>按缺失组成项决定整体状态</td></tr>
+        <tr><td>语义别名</td><td>例如「架构图」可匹配「信息架构图」。</td><td><span class="status present">present</span></td></tr>
+        <tr><td>强实体</td><td>PPT、会议纪要、申请表、计划表等明确实体不能只靠弱目录命中。</td><td><span class="status missing">missing</span> 或 <span class="status uncertain">uncertain</span></td></tr>
+      </table>
+      <ul>
+        <li><code>buildSelfCheckScopeDocuments</code>：确定项目证据范围。<span class="path">knowledge_selfcheck.go:701-724</span></li>
+        <li><code>extractSelfCheckHeadings</code>：提取文档目录/标题。<span class="path">knowledge_selfcheck.go:740-756</span></li>
+        <li><code>matchSelfCheckArtifact</code>：匹配主函数。<span class="path">knowledge_selfcheck.go:758-812</span></li>
+        <li><code>selfCheckArtifactAliases</code>：别名表。<span class="path">knowledge_selfcheck.go:913-947</span></li>
+        <li><code>isSelfCheckStrongEvidenceArtifact</code>：强实体判断。<span class="path">knowledge_selfcheck.go:948-952</span></li>
+      </ul>
+      <p class="note">当前系统不判断 PRD 是否写得好、原型是否高保真、架构图是否正确；只判断目录或标题层面是否存在。</p>
+    </section>
+
+    <section id="states">
+      <a class="top" href="#top">TOP</a>
+      <h2>8. 状态机</h2>
+      <h3>Run 状态</h3>
+      <table>
+        <tr><th>状态</th><th>含义</th></tr>
+        <tr><td><code>running</code></td><td>自检执行中。</td></tr>
+        <tr><td><code>completed</code></td><td>执行完成并保存审计结果。注意：这不代表所有交付物都完成。</td></tr>
+        <tr><td><code>failed</code></td><td>配置、读取、模型或数据库等不可恢复错误。</td></tr>
+      </table>
+      <h3>Finding 状态</h3>
+      <table>
+        <tr><th>状态</th><th>页面展示</th><th>含义</th></tr>
+        <tr><td><code>present</code></td><td><span class="status present">已存在</span></td><td>找到明确证据。</td></tr>
+        <tr><td><code>partial</code></td><td><span class="status partial">不完整</span></td><td>组合交付物部分存在。</td></tr>
+        <tr><td><code>missing</code></td><td><span class="status missing">缺失</span></td><td>未找到标题或目录证据。</td></tr>
+        <tr><td><code>uncertain</code></td><td><span class="status uncertain">待确认</span></td><td>存在弱证据，但不足以确认。</td></tr>
+      </table>
+    </section>
+
+    <section id="notify">
+      <a class="top" href="#top">TOP</a>
+      <h2>9. 通知与定时任务</h2>
+      <h3>飞书通知</h3>
+      <p>自检完成后，系统只通知需处理项：<code>missing</code>、<code>partial</code>、<code>uncertain</code>。已完成项不写入通知。</p>
+      <ul>
+        <li>通知负责人来自 <code>knowledge_selfcheck_profiles.owner_open_id</code>。</li>
+        <li>发送机器人来自 <code>knowledge_selfcheck_profiles.im_channel_id</code>。</li>
+        <li>发送函数：<code>notifySelfCheckOwner</code>，代码位置 <span class="path">knowledge_selfcheck.go:1072-1119</span>。</li>
+      </ul>
+      <h3>每日定时</h3>
+      <p>后端启动后调用 <code>StartKnowledgeSelfCheckScheduler</code>，每分钟检查一次是否到达配置时间。</p>
+      <table>
+        <tr><th>字段/函数</th><th>职责</th></tr>
+        <tr><td><code>daily_schedule</code></td><td>每日自检时间，格式如 <code>daily_0900</code>。</td></tr>
+        <tr><td><code>last_run_at</code></td><td>避免同一时间窗口重复执行。</td></tr>
+        <tr><td><code>runDueKnowledgeSelfChecks</code></td><td>查找启用且到点的项目 profile 并执行自检。</td></tr>
+      </table>
+      <p>代码位置：<span class="path">internal/handler/knowledge_selfcheck.go:1638-1715</span></p>
+    </section>
+
+    <section id="codemap">
+      <a class="top" href="#top">TOP</a>
+      <h2>10. 功能到代码映射</h2>
+      <table>
+        <tr><th>功能</th><th>前端代码</th><th>后端代码</th><th>数据表</th></tr>
+        <tr><td>加载总览</td><td><span class="path">KnowledgeSelfCheck.vue:159<br/>api/index.ts:29</span></td><td><span class="path">GetKnowledgeSelfCheckOverview:215</span></td><td><code>profiles</code>、<code>runs</code>、<code>findings</code></td></tr>
+        <tr><td>保存知识库配置</td><td><span class="path">KnowledgeSelfCheck.vue:179</span></td><td><span class="path">UpdateKnowledgeSelfCheckProfile:288</span></td><td><code>knowledge_selfcheck_profiles</code></td></tr>
+        <tr><td>加载文档绑定</td><td><span class="path">KnowledgeSelfCheck.vue:184</span></td><td><span class="path">ListKnowledgeSelfCheckDocumentMappings:383</span></td><td><code>knowledge_selfcheck_document_mappings</code></td></tr>
+        <tr><td>保存文档绑定</td><td><span class="path">KnowledgeSelfCheck.vue:196-204</span></td><td><span class="path">UpsertKnowledgeSelfCheckDocumentMapping:425</span></td><td><code>knowledge_selfcheck_document_mappings</code></td></tr>
+        <tr><td>立即自检</td><td><span class="path">KnowledgeSelfCheck.vue:180</span></td><td><span class="path">RunKnowledgeSelfCheck:476<br/>runKnowledgeSelfCheck:496</span></td><td><code>runs</code>、<code>findings</code></td></tr>
+        <tr><td>SOP 缓存</td><td>无直接页面操作</td><td><span class="path">cachedSelfCheckSOPRequirements:1253</span></td><td><code>knowledge_selfcheck_sop_deliverables</code></td></tr>
+        <tr><td>交付物抽取</td><td>无直接页面操作</td><td><span class="path">extractSelfCheckSOPRequirementsByRules:1364</span></td><td><code>sop_deliverables.requirements</code></td></tr>
+        <tr><td>标题/目录匹配</td><td>结果展示</td><td><span class="path">matchSelfCheckArtifact:758</span></td><td><code>knowledge_selfcheck_findings</code></td></tr>
+        <tr><td>负责人通知</td><td>配置负责人和机器人</td><td><span class="path">notifySelfCheckOwner:1072</span></td><td><code>profiles.owner_open_id</code>、<code>profiles.im_channel_id</code></td></tr>
+      </table>
+    </section>
+
+    <section id="verify">
+      <a class="top" href="#top">TOP</a>
+      <h2>11. 验证与排查</h2>
+      <h3>推荐构建验证</h3>
+      <pre><code>cd D:\OneDrive\文档\BF-knows 2\vendor\WeKnora
+
+gofmt -w internal\handler\knowledge_selfcheck.go internal\router\routes_chat.go
+pnpm --dir frontend run build-only
+
+docker compose build app frontend
+docker compose up -d app frontend
+docker compose logs --tail=200 app</code></pre>
+      <h3>常用 SQL</h3>
+      <pre><code>-- 文档级绑定
+SELECT project_kb_id, project_document_id, sop_kb_id, sop_document_id,
+       match_method, match_status, updated_at
+FROM knowledge_selfcheck_document_mappings
+ORDER BY updated_at DESC;
+
+-- SOP 交付物缓存
+SELECT sop_document_id, prompt_version, status,
+       jsonb_array_length(requirements) AS requirement_count,
+       error, updated_at
+FROM knowledge_selfcheck_sop_deliverables
+ORDER BY updated_at DESC;
+
+-- 最近自检 run
+SELECT id, project_kb_name, sop_kb_name, status, summary, started_at, completed_at
+FROM knowledge_selfcheck_runs
+ORDER BY started_at DESC
+LIMIT 10;
+
+-- 最近 findings
+SELECT run_id, project_document_title, sop_document_title, requirement, state, evidence, suggestion
+FROM knowledge_selfcheck_findings
+ORDER BY created_at DESC
+LIMIT 50;</code></pre>
+      <h3>常见问题</h3>
+      <table>
+        <tr><th>现象</th><th>优先检查</th></tr>
+        <tr><td>页面没有入口文档绑定区域</td><td>确认 frontend 镜像是否重建，页面 JS 是否为最新构建。</td></tr>
+        <tr><td>保存绑定成功但 DB 没记录</td><td>查 <code>knowledge_selfcheck_document_mappings</code> 全表，确认 tenant 和 project_document_id。</td></tr>
+        <tr><td>SOP 交付物不准</td><td>查 <code>prompt_version</code> 和 <code>requirements</code>，确认是否命中新缓存版本。</td></tr>
+        <tr><td>目录明明有却 missing</td><td>检查目录抽取、别名表、强实体规则和证据文档范围。</td></tr>
+        <tr><td>没有飞书通知</td><td>检查 <code>owner_open_id</code>、<code>im_channel_id</code>、enabled，并查看 app 日志中的 <code>[KnowledgeSelfCheck] notify</code>。</td></tr>
+      </table>
+    </section>
+
+    <footer>本文不包含 API key、App Secret、OAuth Token 等敏感信息。</footer>
+  </main>
+</div>
+</body>
+</html>
